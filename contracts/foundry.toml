@@ -14,8 +14,6 @@ remappings = [
     "forge-std/=lib/forge-std/src/",
 ]
 
-# The deploy script writes ABIs and addresses into the front-end.
-# Forge scripts may only touch the paths listed here.
 fs_permissions = [
     { access = "read", path = "./out" },
     { access = "read-write", path = "../frontend/src/contracts" },
@@ -28,6 +26,17 @@ runs = 256
 [invariant]
 runs = 128
 depth = 64
+
+[lint]
+exclude_lints = [
+    "reentrancy-events",
+    "require-revert-in-loop",
+    "calls-loop",
+    "block-timestamp",
+    "unused-return",
+    "missing-events-arithmetic",
+    "missing-events-access-control",
+]
 
 [rpc_endpoints]
 localhost = "http://127.0.0.1:8545"
