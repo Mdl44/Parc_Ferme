@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Contracts (Foundry)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1.9.2
+        with:
+          version: v1.9.0
+
+      - name: Versions
+        run: forge --version
+
+      - name: Formatting
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build --sizes
+
+      - name: Lint
+        run: forge lint --deny warnings
+
+      - name: Tests
+        run: forge test -vvv
+
+      - name: Upgrade keeps the V1 storage layout
+        run: bash script/check-storage-layout.sh
+
+      - name: Coverage
+        run: forge coverage --no-match-coverage "(script|test|mocks)/" --report summary
+
+  scripts:
+    name: Data scripts (Node)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+
+      - run: npm ci
+
+      - name: Syntax check
+        run: for f in *.mjs lib/*.mjs; do node --check "$f"; done
+
+      - name: Merkle trees rebuild exactly from documents.json
+        run: |
+          node build-merkle.mjs
+          git diff --exit-code -- ../data/merkle
+
+  frontend:
+    name: Front-end (Vite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build

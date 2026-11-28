@@ -1,0 +1,444 @@
+{
+  "season": 2026,
+  "teams": [
+    {
+      "id": "mclaren",
+      "name": "McLaren Mastercard F1 Team",
+      "constructor": "McLaren Mercedes",
+      "drivers": [
+        1,
+        67,
+        81
+      ]
+    },
+    {
+      "id": "mercedes",
+      "name": "Mercedes-AMG PETRONAS F1 Team",
+      "constructor": "Mercedes",
+      "drivers": [
+        12,
+        63,
+        72
+      ]
+    },
+    {
+      "id": "red-bull",
+      "name": "Oracle Red Bull Racing",
+      "constructor": "Red Bull Racing Red Bull Ford",
+      "drivers": [
+        3,
+        6,
+        36
+      ]
+    },
+    {
+      "id": "ferrari",
+      "name": "Scuderia Ferrari HP",
+      "constructor": "Ferrari",
+      "drivers": [
+        16,
+        38,
+        44
+      ]
+    },
+    {
+      "id": "williams",
+      "name": "Atlassian Williams F1 Team",
+      "constructor": "Atlassian Williams Mercedes",
+      "drivers": [
+        23,
+        46,
+        55
+      ]
+    },
+    {
+      "id": "racing-bulls",
+      "name": "Visa Cash App Racing Bulls F1 Team",
+      "constructor": "Racing Bulls Red Bull Ford",
+      "drivers": [
+        22,
+        30,
+        41,
+        91
+      ]
+    },
+    {
+      "id": "aston-martin",
+      "name": "Aston Martin Aramco F1 Team",
+      "constructor": "Aston Martin Aramco Honda",
+      "drivers": [
+        14,
+        18,
+        34
+      ]
+    },
+    {
+      "id": "haas",
+      "name": "TGR Haas F1 Team",
+      "constructor": "Haas Ferrari",
+      "drivers": [
+        31,
+        50,
+        51,
+        87
+      ]
+    },
+    {
+      "id": "audi",
+      "name": "Audi Revolut F1 Team",
+      "constructor": "Audi",
+      "drivers": [
+        5,
+        27,
+        98
+      ]
+    },
+    {
+      "id": "alpine",
+      "name": "BWT Alpine F1 Team",
+      "constructor": "Alpine Mercedes",
+      "drivers": [
+        10,
+        43,
+        61,
+        62
+      ]
+    },
+    {
+      "id": "cadillac",
+      "name": "Cadillac Formula 1 Team",
+      "constructor": "Cadillac Ferrari",
+      "drivers": [
+        11,
+        25,
+        77
+      ]
+    }
+  ],
+  "drivers": [
+    {
+      "number": 1,
+      "code": "NOR",
+      "name": "Lando Norris",
+      "nationality": "GBR",
+      "team": "mclaren",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 3,
+      "code": "VER",
+      "name": "Max Verstappen",
+      "nationality": "NED",
+      "team": "red-bull",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 5,
+      "code": "BOR",
+      "name": "Gabriel Bortoleto",
+      "nationality": "BRA",
+      "team": "audi",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 6,
+      "code": "HAD",
+      "name": "Isack Hadjar",
+      "nationality": "FRA",
+      "team": "red-bull",
+      "reserve": false,
+      "weekends": 7
+    },
+    {
+      "number": 10,
+      "code": "GAS",
+      "name": "Pierre Gasly",
+      "nationality": "FRA",
+      "team": "alpine",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 11,
+      "code": "PER",
+      "name": "Sergio Perez",
+      "nationality": "MEX",
+      "team": "cadillac",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 12,
+      "code": "ANT",
+      "name": "Kimi Antonelli",
+      "nationality": "ITA",
+      "team": "mercedes",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 14,
+      "code": "ALO",
+      "name": "Fernando Alonso",
+      "nationality": "ESP",
+      "team": "aston-martin",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 16,
+      "code": "LEC",
+      "name": "Charles Leclerc",
+      "nationality": "MON",
+      "team": "ferrari",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 18,
+      "code": "STR",
+      "name": "Lance Stroll",
+      "nationality": "CAN",
+      "team": "aston-martin",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 22,
+      "code": "TSU",
+      "name": "Yuki Tsunoda",
+      "nationality": "JPN",
+      "team": "racing-bulls",
+      "reserve": false,
+      "weekends": 3
+    },
+    {
+      "number": 23,
+      "code": "ALB",
+      "name": "Alexander Albon",
+      "nationality": "THA",
+      "team": "williams",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 25,
+      "code": "HER",
+      "name": "Colton Herta",
+      "nationality": "USA",
+      "team": "cadillac",
+      "reserve": true,
+      "weekends": 4
+    },
+    {
+      "number": 27,
+      "code": "HUL",
+      "name": "Nico Hulkenberg",
+      "nationality": "GER",
+      "team": "audi",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 30,
+      "code": "LAW",
+      "name": "Liam Lawson",
+      "nationality": "NZL",
+      "team": "racing-bulls",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 31,
+      "code": "OCO",
+      "name": "Esteban Ocon",
+      "nationality": "FRA",
+      "team": "haas",
+      "reserve": false,
+      "weekends": 7
+    },
+    {
+      "number": 34,
+      "code": "CRA",
+      "name": "Jak Crawford",
+      "nationality": "USA",
+      "team": "aston-martin",
+      "reserve": true,
+      "weekends": 2
+    },
+    {
+      "number": 36,
+      "code": "IWA",
+      "name": "Ayumu Iwasa",
+      "nationality": "JPN",
+      "team": "red-bull",
+      "reserve": true,
+      "weekends": 2
+    },
+    {
+      "number": 38,
+      "code": "BEG",
+      "name": "Dino Beganovic",
+      "nationality": "SWE",
+      "team": "ferrari",
+      "reserve": true,
+      "weekends": 2
+    },
+    {
+      "number": 41,
+      "code": "LIN",
+      "name": "Arvid Lindblad",
+      "nationality": "GBR",
+      "team": "racing-bulls",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 43,
+      "code": "COL",
+      "name": "Franco Colapinto",
+      "nationality": "ARG",
+      "team": "alpine",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 44,
+      "code": "HAM",
+      "name": "Lewis Hamilton",
+      "nationality": "GBR",
+      "team": "ferrari",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 46,
+      "code": "BRO",
+      "name": "Luke Browning",
+      "nationality": "GBR",
+      "team": "williams",
+      "reserve": true,
+      "weekends": 3
+    },
+    {
+      "number": 50,
+      "code": "HIR",
+      "name": "Ryo Hirakawa",
+      "nationality": "JPN",
+      "team": "haas",
+      "reserve": false,
+      "weekends": 2
+    },
+    {
+      "number": 51,
+      "code": "CAM",
+      "name": "Rafael Camara",
+      "nationality": "BRA",
+      "team": "haas",
+      "reserve": false,
+      "weekends": 2
+    },
+    {
+      "number": 55,
+      "code": "SAI",
+      "name": "Carlos Sainz",
+      "nationality": "ESP",
+      "team": "williams",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 61,
+      "code": "ARO",
+      "name": "Paul Aron",
+      "nationality": "EST",
+      "team": "alpine",
+      "reserve": true,
+      "weekends": 1
+    },
+    {
+      "number": 62,
+      "code": "MIN",
+      "name": "Gabriele Mini",
+      "nationality": "ITA",
+      "team": "alpine",
+      "reserve": true,
+      "weekends": 2
+    },
+    {
+      "number": 63,
+      "code": "RUS",
+      "name": "George Russell",
+      "nationality": "GBR",
+      "team": "mercedes",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 67,
+      "code": "FOR",
+      "name": "Leonardo Fornaroli",
+      "nationality": "ITA",
+      "team": "mclaren",
+      "reserve": true,
+      "weekends": 2
+    },
+    {
+      "number": 72,
+      "code": "VES",
+      "name": "Frederik Vesti",
+      "nationality": "DEN",
+      "team": "mercedes",
+      "reserve": true,
+      "weekends": 1
+    },
+    {
+      "number": 77,
+      "code": "BOT",
+      "name": "Valtteri Bottas",
+      "nationality": "FIN",
+      "team": "cadillac",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 81,
+      "code": "PIA",
+      "name": "Oscar Piastri",
+      "nationality": "AUS",
+      "team": "mclaren",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 87,
+      "code": "BEA",
+      "name": "Oliver Bearman",
+      "nationality": "GBR",
+      "team": "haas",
+      "reserve": false,
+      "weekends": 10
+    },
+    {
+      "number": 91,
+      "code": "TSO",
+      "name": "Nikola Tsolov",
+      "nationality": "BUL",
+      "team": "racing-bulls",
+      "reserve": true,
+      "weekends": 1
+    },
+    {
+      "number": 98,
+      "code": "SLA",
+      "name": "Freddie Slater",
+      "nationality": "GBR",
+      "team": "audi",
+      "reserve": true,
+      "weekends": 2
+    }
+  ]
+}

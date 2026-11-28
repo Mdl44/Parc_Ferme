@@ -1,0 +1,75 @@
+{
+  "season": 2026,
+  "weekends": [
+    {
+      "order": 1,
+      "event": "2026 Dutch Grand Prix",
+      "file": "merkle/01-dutch-grand-prix.json",
+      "root": "0xd42c2d08856adda7cc1368b706843066b162579fc1d2fa2dcda53842abe3c738",
+      "count": 75
+    },
+    {
+      "order": 2,
+      "event": "2026 Italian Grand Prix",
+      "file": "merkle/02-italian-grand-prix.json",
+      "root": "0xb83e008d5d73e400125e87f00627aac14bbb0e63256c2816bc4801f3bfafd053",
+      "count": 70
+    },
+    {
+      "order": 3,
+      "event": "2026 Spanish Grand Prix",
+      "file": "merkle/03-spanish-grand-prix.json",
+      "root": "0x14cb4f4a0e49ee639822d049e8b5414107e3af9c686f9c719b165ec06bb45dca",
+      "count": 73
+    },
+    {
+      "order": 4,
+      "event": "2026 Azerbaijan Grand Prix",
+      "file": "merkle/04-azerbaijan-grand-prix.json",
+      "root": "0xc6ca9f4d3e5f9491ad7b5bd7fc09a5b16b97958d67ad891d766324543731c644",
+      "count": 70
+    },
+    {
+      "order": 5,
+      "event": "2026 Bahrain Grand Prix",
+      "file": "merkle/05-bahrain-grand-prix.json",
+      "root": "0x7b7d94b568928e740006e0dfc5656fcdfa47935113f35053917b6e10ed5a61ca",
+      "count": 59
+    },
+    {
+      "order": 6,
+      "event": "2026 Singapore Grand Prix",
+      "file": "merkle/06-singapore-grand-prix.json",
+      "root": "0xed7bdc501193a78994b0ac9b16639aa5b875907bb99f133a4cfb0ba2e04d45a9",
+      "count": 89
+    },
+    {
+      "order": 7,
+      "event": "2026 United States Grand Prix",
+      "file": "merkle/07-united-states-grand-prix.json",
+      "root": "0x170113fee6f4bd4b34b47e4b4170e167d19cdf518d64befe0c354ebd29209034",
+      "count": 57
+    },
+    {
+      "order": 8,
+      "event": "2026 Mexico City Grand Prix",
+      "file": "merkle/08-mexico-city-grand-prix.json",
+      "root": "0xa9aece571d13e8f7ba8409295da8fa06434d795591034877b02062a32026945c",
+      "count": 85
+    },
+    {
+      "order": 9,
+      "event": "2026 São Paulo Grand Prix",
+      "file": "merkle/09-sao-paulo-grand-prix.json",
+      "root": "0x2b5f780d502ddab13039a19d0dc8a9a66e5d7fe8c79d61d1ff7feb9ba5db2e1b",
+      "count": 81
+    },
+    {
+      "order": 10,
+      "event": "2026 Las Vegas Grand Prix",
+      "file": "merkle/10-las-vegas-grand-prix.json",
+      "root": "0x601a91c0410af42c07a1c63ad1544ed89100aa840bb6b7e3860c5be8315ad0c2",
+      "count": 65
+    }
+  ]
+}

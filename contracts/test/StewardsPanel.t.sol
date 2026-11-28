@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import {BaseAccount} from "@account-abstraction/contracts/core/BaseAccount.sol";
 import {StewardsPanel} from "../src/StewardsPanel.sol";
 import {PanelHelper} from "./utils/PanelHelper.sol";
 
@@ -31,7 +32,7 @@ contract ReenteringTarget {
     }
 
     function attack() external {
-        panel.execute(new StewardsPanel.Call[](1), "");
+        panel.executeDecision(new BaseAccount.Call[](1), "");
     }
 }
 
@@ -54,7 +55,7 @@ contract StewardsPanelTest is PanelHelper {
         stewards[0] = steward1;
         stewards[1] = steward2;
         stewards[2] = steward3;
-        panel = new StewardsPanel(stewards, 2);
+        panel = new StewardsPanel(stewards, 2, entryPoint);
         target = new Target();
     }
 
@@ -75,54 +76,54 @@ contract StewardsPanelTest is PanelHelper {
         three[2] = steward3;
 
         vm.expectRevert(StewardsPanel.InvalidSetup.selector);
-        new StewardsPanel(three, 0);
+        new StewardsPanel(three, 0, entryPoint);
 
         vm.expectRevert(StewardsPanel.InvalidSetup.selector);
-        new StewardsPanel(three, 4);
+        new StewardsPanel(three, 4, entryPoint);
 
         three[2] = steward1;
         vm.expectRevert(StewardsPanel.InvalidSetup.selector);
-        new StewardsPanel(three, 2);
+        new StewardsPanel(three, 2, entryPoint);
 
         three[2] = address(0);
         vm.expectRevert(StewardsPanel.InvalidSetup.selector);
-        new StewardsPanel(three, 2);
+        new StewardsPanel(three, 2, entryPoint);
     }
 
     function test_HashBatch_MatchesTheStandard() public view {
-        StewardsPanel.Call[] memory calls = new StewardsPanel.Call[](2);
-        calls[0] = StewardsPanel.Call(address(target), 1 ether, abi.encodeCall(Target.set, (7)));
-        calls[1] = StewardsPanel.Call(address(0xdead), 0, "");
+        BaseAccount.Call[] memory calls = new BaseAccount.Call[](2);
+        calls[0] = BaseAccount.Call(address(target), 1 ether, abi.encodeCall(Target.set, (7)));
+        calls[1] = BaseAccount.Call(address(0xdead), 0, "");
 
         assertEq(panel.hashBatch(calls, 5), _digest(panel, calls, 5));
     }
 
     function test_Execute_WithTwoOfThree() public {
-        StewardsPanel.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
         bytes memory sigs = _sign(_keys(KEY_1, KEY_2), _digest(panel, calls, 0));
 
         vm.expectEmit(true, true, false, true, address(panel));
         emit StewardsPanel.Executed(0, relayer, 1);
 
         vm.prank(relayer);
-        panel.execute(calls, sigs);
+        panel.executeDecision(calls, sigs);
 
         assertEq(target.value(), 7);
         assertEq(panel.nonce(), 1);
     }
 
     function test_Execute_WithAllThree() public {
-        StewardsPanel.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (8)));
-        panel.execute(calls, _sign(_keys(KEY_1, KEY_2, KEY_3), _digest(panel, calls, 0)));
+        BaseAccount.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (8)));
+        panel.executeDecision(calls, _sign(_keys(KEY_1, KEY_2, KEY_3), _digest(panel, calls, 0)));
         assertEq(target.value(), 8);
     }
 
     function test_Execute_AnyTwoStewardsWork() public {
-        StewardsPanel.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (1)));
-        panel.execute(calls, _sign(_keys(KEY_2, KEY_3), _digest(panel, calls, 0)));
+        BaseAccount.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (1)));
+        panel.executeDecision(calls, _sign(_keys(KEY_2, KEY_3), _digest(panel, calls, 0)));
 
         calls = _one(address(target), 0, abi.encodeCall(Target.set, (2)));
-        panel.execute(calls, _sign(_keys(KEY_1, KEY_3), _digest(panel, calls, 1)));
+        panel.executeDecision(calls, _sign(_keys(KEY_1, KEY_3), _digest(panel, calls, 1)));
 
         assertEq(target.value(), 2);
         assertEq(panel.nonce(), 2);
@@ -132,11 +133,11 @@ contract StewardsPanelTest is PanelHelper {
         vm.deal(address(panel), 5 ether);
         address payable recipient = payable(makeAddr("recipient"));
 
-        StewardsPanel.Call[] memory calls = new StewardsPanel.Call[](2);
-        calls[0] = StewardsPanel.Call(address(target), 1 ether, abi.encodeCall(Target.set, (10)));
-        calls[1] = StewardsPanel.Call(recipient, 2 ether, "");
+        BaseAccount.Call[] memory calls = new BaseAccount.Call[](2);
+        calls[0] = BaseAccount.Call(address(target), 1 ether, abi.encodeCall(Target.set, (10)));
+        calls[1] = BaseAccount.Call(recipient, 2 ether, "");
 
-        panel.execute(calls, _sign(_keys(KEY_1, KEY_2), _digest(panel, calls, 0)));
+        panel.executeDecision(calls, _sign(_keys(KEY_1, KEY_2), _digest(panel, calls, 0)));
 
         assertEq(target.value(), 10);
         assertEq(target.received(), 1 ether);
@@ -145,9 +146,9 @@ contract StewardsPanelTest is PanelHelper {
     }
 
     function test_Execute_IfOneCallFailsEverythingIsUndone() public {
-        StewardsPanel.Call[] memory calls = new StewardsPanel.Call[](2);
-        calls[0] = StewardsPanel.Call(address(target), 0, abi.encodeCall(Target.set, (99)));
-        calls[1] = StewardsPanel.Call(address(target), 0, abi.encodeCall(Target.fail, ()));
+        BaseAccount.Call[] memory calls = new BaseAccount.Call[](2);
+        calls[0] = BaseAccount.Call(address(target), 0, abi.encodeCall(Target.set, (99)));
+        calls[1] = BaseAccount.Call(address(target), 0, abi.encodeCall(Target.fail, ()));
         bytes memory sigs = _sign(_keys(KEY_1, KEY_2), _digest(panel, calls, 0));
 
         vm.expectRevert(
@@ -155,7 +156,7 @@ contract StewardsPanelTest is PanelHelper {
                 StewardsPanel.CallFailed.selector, 1, abi.encodeWithSelector(Target.Nope.selector, 42)
             )
         );
-        panel.execute(calls, sigs);
+        panel.executeDecision(calls, sigs);
 
         assertEq(target.value(), 0);
         assertEq(panel.nonce(), 0);
@@ -163,53 +164,53 @@ contract StewardsPanelTest is PanelHelper {
 
     function test_RevertWhen_BatchIsEmpty() public {
         vm.expectRevert(StewardsPanel.EmptyBatch.selector);
-        panel.execute(new StewardsPanel.Call[](0), "");
+        panel.executeDecision(new BaseAccount.Call[](0), "");
     }
 
     function test_RevertWhen_OnlyOneSignature() public {
-        StewardsPanel.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
         bytes memory sigs = _signBy(KEY_1, _digest(panel, calls, 0));
 
         vm.expectRevert(StewardsPanel.InvalidSignatures.selector);
-        panel.execute(calls, sigs);
+        panel.executeDecision(calls, sigs);
     }
 
     function test_RevertWhen_NoSignatures() public {
-        StewardsPanel.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
         vm.expectRevert(StewardsPanel.InvalidSignatures.selector);
-        panel.execute(calls, "");
+        panel.executeDecision(calls, "");
     }
 
     function test_RevertWhen_SameStewardSignsTwice() public {
-        StewardsPanel.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
         bytes memory one = _signBy(KEY_1, _digest(panel, calls, 0));
 
         vm.expectRevert(StewardsPanel.InvalidSignatures.selector);
-        panel.execute(calls, bytes.concat(one, one));
+        panel.executeDecision(calls, bytes.concat(one, one));
     }
 
     function test_RevertWhen_SignaturesAreInTheWrongOrder() public {
-        StewardsPanel.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
         bytes32 digest = _digest(panel, calls, 0);
         (uint256 low, uint256 high) = steward1 < steward2 ? (KEY_1, KEY_2) : (KEY_2, KEY_1);
 
         vm.expectRevert(StewardsPanel.InvalidSignatures.selector);
-        panel.execute(calls, bytes.concat(_signBy(high, digest), _signBy(low, digest)));
+        panel.executeDecision(calls, bytes.concat(_signBy(high, digest), _signBy(low, digest)));
 
-        panel.execute(calls, bytes.concat(_signBy(low, digest), _signBy(high, digest)));
+        panel.executeDecision(calls, bytes.concat(_signBy(low, digest), _signBy(high, digest)));
         assertEq(target.value(), 7);
     }
 
     function test_RevertWhen_OneSignerIsNotASteward() public {
-        StewardsPanel.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
         bytes memory sigs = _sign(_keys(KEY_1, OUTSIDER_KEY), _digest(panel, calls, 0));
 
         vm.expectRevert(StewardsPanel.InvalidSignatures.selector);
-        panel.execute(calls, sigs);
+        panel.executeDecision(calls, sigs);
     }
 
     function test_RevertWhen_SignatureLengthIsWrong() public {
-        StewardsPanel.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
         bytes memory sigs = _sign(_keys(KEY_1, KEY_2), _digest(panel, calls, 0));
         bytes memory cut = new bytes(sigs.length - 1);
         for (uint256 i = 0; i < cut.length; i++) {
@@ -217,68 +218,68 @@ contract StewardsPanelTest is PanelHelper {
         }
 
         vm.expectRevert(StewardsPanel.InvalidSignatures.selector);
-        panel.execute(calls, cut);
+        panel.executeDecision(calls, cut);
     }
 
     function test_RevertWhen_TheCallsAreChangedAfterSigning() public {
-        StewardsPanel.Call[] memory signed = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory signed = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
         bytes memory sigs = _sign(_keys(KEY_1, KEY_2), _digest(panel, signed, 0));
 
-        StewardsPanel.Call[] memory tampered = _one(address(target), 0, abi.encodeCall(Target.set, (1000)));
+        BaseAccount.Call[] memory tampered = _one(address(target), 0, abi.encodeCall(Target.set, (1000)));
         vm.expectRevert(StewardsPanel.InvalidSignatures.selector);
-        panel.execute(tampered, sigs);
+        panel.executeDecision(tampered, sigs);
     }
 
     function test_RevertWhen_ReplayingAnExecutedBatch() public {
-        StewardsPanel.Call[] memory calls = _one(address(target), 1 ether, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory calls = _one(address(target), 1 ether, abi.encodeCall(Target.set, (7)));
         bytes memory sigs = _sign(_keys(KEY_1, KEY_2), _digest(panel, calls, 0));
         vm.deal(address(panel), 10 ether);
 
-        panel.execute(calls, sigs);
+        panel.executeDecision(calls, sigs);
 
         vm.expectRevert(StewardsPanel.InvalidSignatures.selector);
-        panel.execute(calls, sigs);
+        panel.executeDecision(calls, sigs);
         assertEq(target.received(), 1 ether);
     }
 
     function test_RevertWhen_SignedForAnotherNonce() public {
-        StewardsPanel.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
         bytes memory sigs = _sign(_keys(KEY_1, KEY_2), _digest(panel, calls, 1));
 
         vm.expectRevert(StewardsPanel.InvalidSignatures.selector);
-        panel.execute(calls, sigs);
+        panel.executeDecision(calls, sigs);
     }
 
     function test_RevertWhen_SignedForAnotherChain() public {
-        StewardsPanel.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
         bytes memory sigs = _sign(_keys(KEY_1, KEY_2), _digest(panel, calls, 0));
 
         vm.chainId(block.chainid + 1);
         vm.expectRevert(StewardsPanel.InvalidSignatures.selector);
-        panel.execute(calls, sigs);
+        panel.executeDecision(calls, sigs);
     }
 
     function test_RevertWhen_SignedForAnotherPanel() public {
         address[] memory stewards = panel.stewards();
-        StewardsPanel other = new StewardsPanel(stewards, 2);
+        StewardsPanel other = new StewardsPanel(stewards, 2, entryPoint);
 
-        StewardsPanel.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
         bytes memory sigs = _sign(_keys(KEY_1, KEY_2), _digest(other, calls, 0));
 
         vm.expectRevert(StewardsPanel.InvalidSignatures.selector);
-        panel.execute(calls, sigs);
+        panel.executeDecision(calls, sigs);
     }
 
     function test_RevertWhen_ExecuteIsReentered() public {
         ReenteringTarget evil = new ReenteringTarget();
         evil.setPanel(panel);
 
-        StewardsPanel.Call[] memory calls = _one(address(evil), 0, abi.encodeCall(ReenteringTarget.attack, ()));
+        BaseAccount.Call[] memory calls = _one(address(evil), 0, abi.encodeCall(ReenteringTarget.attack, ()));
         bytes memory sigs = _sign(_keys(KEY_1, KEY_2), _digest(panel, calls, 0));
 
         bytes memory inner = abi.encodeWithSelector(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
         vm.expectRevert(abi.encodeWithSelector(StewardsPanel.CallFailed.selector, 0, inner));
-        panel.execute(calls, sigs);
+        panel.executeDecision(calls, sigs);
     }
 
     function testFuzz_RevertWhen_SignedByNonStewards(uint256 keyA, uint256 keyB) public {
@@ -288,11 +289,11 @@ contract StewardsPanelTest is PanelHelper {
         vm.assume(keyA != keyB);
         vm.assume(!panel.isSteward(vm.addr(keyA)) && !panel.isSteward(vm.addr(keyB)));
 
-        StewardsPanel.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory calls = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
         bytes memory sigs = _sign(_keys(keyA, keyB), _digest(panel, calls, 0));
 
         vm.expectRevert(StewardsPanel.InvalidSignatures.selector);
-        panel.execute(calls, sigs);
+        panel.executeDecision(calls, sigs);
     }
 
     function test_Receive_AcceptsEthAndEmits() public {
@@ -315,21 +316,21 @@ contract StewardsPanelTest is PanelHelper {
         vm.expectRevert(abi.encodeWithSelector(StewardsPanel.NotThePanel.selector, steward1));
         panel.replaceSteward(steward3, newSteward);
 
-        StewardsPanel.Call[] memory calls =
+        BaseAccount.Call[] memory calls =
             _one(address(panel), 0, abi.encodeCall(StewardsPanel.replaceSteward, (steward3, newSteward)));
 
         vm.expectEmit(true, true, false, false, address(panel));
         emit StewardsPanel.StewardReplaced(steward3, newSteward);
-        panel.execute(calls, _sign(_keys(KEY_1, KEY_2), _digest(panel, calls, 0)));
+        panel.executeDecision(calls, _sign(_keys(KEY_1, KEY_2), _digest(panel, calls, 0)));
 
         assertTrue(panel.isSteward(newSteward));
         assertFalse(panel.isSteward(steward3));
         assertEq(panel.stewards()[2], newSteward);
 
-        StewardsPanel.Call[] memory next = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
+        BaseAccount.Call[] memory next = _one(address(target), 0, abi.encodeCall(Target.set, (7)));
         bytes memory sigs = _sign(_keys(KEY_1, KEY_3), _digest(panel, next, 1));
         vm.expectRevert(StewardsPanel.InvalidSignatures.selector);
-        panel.execute(next, sigs);
+        panel.executeDecision(next, sigs);
     }
 
     function test_RevertWhen_ReplacingWithBadAddresses() public {

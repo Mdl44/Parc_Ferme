@@ -4,8 +4,8 @@ pragma solidity ^0.8.28;
 interface ITeamBond {
     function openWeekend() external returns (uint256 weekendId);
     function closeWeekend() external;
-    function registerTeam(address team) external;
-    function applyFine(address team, uint256 eurAmount)
+    function registerTeam(address team, string calldata name) external;
+    function applyFine(address team, uint256 eurAmount, bytes32 decision)
         external
         returns (uint256 fineWei, uint256 fromBond, uint256 newDebt);
 

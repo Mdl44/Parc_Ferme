@@ -2,18 +2,15 @@
 pragma solidity ^0.8.28;
 
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {BaseAccount} from "@account-abstraction/contracts/core/BaseAccount.sol";
+import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 import {StewardsPanel} from "../src/StewardsPanel.sol";
 import {SuperLicence} from "../src/SuperLicence.sol";
+import {SuperLicenceV2} from "../src/SuperLicenceV2.sol";
 import {TeamBond} from "../src/TeamBond.sol";
 import {DocumentRegistry} from "../src/DocumentRegistry.sol";
 import {MockAggregator} from "../src/mocks/MockAggregator.sol";
 import {PanelHelper} from "./utils/PanelHelper.sol";
-
-contract LicenceV2Mock is SuperLicence {
-    function version() external pure returns (uint256) {
-        return 2;
-    }
-}
 
 contract IntegrationTest is PanelHelper {
     StewardsPanel internal panel;
@@ -34,7 +31,7 @@ contract IntegrationTest is PanelHelper {
         stewards[0] = vm.addr(KEY_1);
         stewards[1] = vm.addr(KEY_2);
         stewards[2] = vm.addr(KEY_3);
-        panel = new StewardsPanel(stewards, 2);
+        panel = new StewardsPanel(stewards, 2, entryPoint);
 
         SuperLicence implementation = new SuperLicence();
         licence = SuperLicence(
@@ -50,10 +47,10 @@ contract IntegrationTest is PanelHelper {
 
         vm.deal(ferrari, 100 ether);
 
-        StewardsPanel.Call[] memory calls = new StewardsPanel.Call[](3);
-        calls[0] = _c(address(bond), abi.encodeCall(bond.registerTeam, (ferrari)));
+        BaseAccount.Call[] memory calls = new BaseAccount.Call[](3);
+        calls[0] = _c(address(bond), abi.encodeCall(bond.registerTeam, (ferrari, "Team")));
         calls[1] = _c(address(bond), abi.encodeCall(bond.openWeekend, ()));
-        calls[2] = _c(address(licence), abi.encodeCall(licence.mintLicence, (leclerc)));
+        calls[2] = _c(address(licence), abi.encodeCall(licence.mintLicence, (leclerc, "Driver", "DRV", 1)));
         _decide(calls);
     }
 
@@ -62,9 +59,9 @@ contract IntegrationTest is PanelHelper {
         bond.depositBond{value: 1 ether}();
         uint256 fine = bond.quoteFineWei(10_000);
 
-        StewardsPanel.Call[] memory calls = new StewardsPanel.Call[](2);
-        calls[0] = _c(address(licence), abi.encodeCall(licence.addPoints, (leclerc, 4)));
-        calls[1] = _c(address(bond), abi.encodeCall(bond.applyFine, (ferrari, 10_000)));
+        BaseAccount.Call[] memory calls = new BaseAccount.Call[](2);
+        calls[0] = _c(address(licence), abi.encodeCall(licence.addPoints, (leclerc, 4, bytes32(0))));
+        calls[1] = _c(address(bond), abi.encodeCall(bond.applyFine, (ferrari, 10_000, bytes32(0))));
         _decide(calls);
 
         assertEq(licence.points(leclerc), 4);
@@ -73,7 +70,7 @@ contract IntegrationTest is PanelHelper {
     }
 
     function test_TwelvePointsMeansABanUntilItIsServed() public {
-        _decide(_one(address(licence), 0, abi.encodeCall(licence.addPoints, (leclerc, 12))));
+        _decide(_one(address(licence), 0, abi.encodeCall(licence.addPoints, (leclerc, 12, bytes32(0)))));
         assertTrue(licence.isBanned(leclerc));
 
         _decide(_one(address(licence), 0, abi.encodeCall(licence.serveBan, (leclerc))));
@@ -84,9 +81,9 @@ contract IntegrationTest is PanelHelper {
     function test_DecisionIsAllOrNothing() public {
         address unknownTeam = makeAddr("unknownTeam");
 
-        StewardsPanel.Call[] memory calls = new StewardsPanel.Call[](2);
-        calls[0] = _c(address(licence), abi.encodeCall(licence.addPoints, (leclerc, 3)));
-        calls[1] = _c(address(bond), abi.encodeCall(bond.applyFine, (unknownTeam, 5_000)));
+        BaseAccount.Call[] memory calls = new BaseAccount.Call[](2);
+        calls[0] = _c(address(licence), abi.encodeCall(licence.addPoints, (leclerc, 3, bytes32(0))));
+        calls[1] = _c(address(bond), abi.encodeCall(bond.applyFine, (unknownTeam, 5_000, bytes32(0))));
         bytes memory sigs = _sign(_keys(KEY_1, KEY_2), _digest(panel, calls, panel.nonce()));
 
         vm.expectRevert(
@@ -94,7 +91,7 @@ contract IntegrationTest is PanelHelper {
                 StewardsPanel.CallFailed.selector, 1, abi.encodeWithSelector(TeamBond.NotATeam.selector, unknownTeam)
             )
         );
-        panel.execute(calls, sigs);
+        panel.executeDecision(calls, sigs);
 
         assertEq(licence.points(leclerc), 0);
     }
@@ -103,9 +100,9 @@ contract IntegrationTest is PanelHelper {
         vm.prank(ferrari);
         bond.depositBond{value: 0.1 ether}();
 
-        StewardsPanel.Call[] memory calls = new StewardsPanel.Call[](2);
+        BaseAccount.Call[] memory calls = new BaseAccount.Call[](2);
         calls[0] = _c(address(bond), abi.encodeCall(bond.setFineScale, (1)));
-        calls[1] = _c(address(bond), abi.encodeCall(bond.applyFine, (ferrari, 10_000)));
+        calls[1] = _c(address(bond), abi.encodeCall(bond.applyFine, (ferrari, 10_000, bytes32(0))));
         _decide(calls);
 
         uint256 owed = bond.debtOf(ferrari);
@@ -122,9 +119,9 @@ contract IntegrationTest is PanelHelper {
     function test_NobodyButThePanelCanChangeTheContracts() public {
         vm.startPrank(stranger);
         vm.expectRevert(abi.encodeWithSelector(SuperLicence.NotPanel.selector, stranger));
-        licence.addPoints(leclerc, 1);
+        licence.addPoints(leclerc, 1, bytes32(0));
         vm.expectRevert(abi.encodeWithSelector(TeamBond.NotPanel.selector, stranger));
-        bond.applyFine(ferrari, 1);
+        bond.applyFine(ferrari, 1, bytes32(0));
         vm.expectRevert(abi.encodeWithSelector(DocumentRegistry.NotPanel.selector, stranger));
         registry.publishRoot(1, keccak256("root"), "cid");
         vm.stopPrank();
@@ -132,9 +129,9 @@ contract IntegrationTest is PanelHelper {
         address steward = vm.addr(KEY_1);
         vm.startPrank(steward);
         vm.expectRevert(abi.encodeWithSelector(SuperLicence.NotPanel.selector, steward));
-        licence.addPoints(leclerc, 1);
+        licence.addPoints(leclerc, 1, bytes32(0));
         vm.expectRevert(abi.encodeWithSelector(TeamBond.NotPanel.selector, steward));
-        bond.applyFine(ferrari, 1);
+        bond.applyFine(ferrari, 1, bytes32(0));
         vm.stopPrank();
     }
 
@@ -149,7 +146,7 @@ contract IntegrationTest is PanelHelper {
         bytes32 root =
             leafA < leafB ? keccak256(abi.encodePacked(leafA, leafB)) : keccak256(abi.encodePacked(leafB, leafA));
 
-        StewardsPanel.Call[] memory calls = new StewardsPanel.Call[](2);
+        BaseAccount.Call[] memory calls = new BaseAccount.Call[](2);
         calls[0] = _c(address(bond), abi.encodeCall(bond.closeWeekend, ()));
         calls[1] = _c(address(registry), abi.encodeCall(registry.publishRoot, (1, root, "bafy-weekend-1")));
         _decide(calls);
@@ -176,25 +173,79 @@ contract IntegrationTest is PanelHelper {
     }
 
     function test_LicenceUpgradeNeedsADecision() public {
-        _decide(_one(address(licence), 0, abi.encodeCall(licence.addPoints, (leclerc, 5))));
+        _decide(_one(address(licence), 0, abi.encodeCall(licence.addPoints, (leclerc, 5, bytes32(0)))));
 
-        LicenceV2Mock v2 = new LicenceV2Mock();
+        SuperLicenceV2 v2 = new SuperLicenceV2();
 
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(SuperLicence.NotPanel.selector, stranger));
         licence.upgradeToAndCall(address(v2), "");
 
-        _decide(_one(address(licence), 0, abi.encodeCall(licence.upgradeToAndCall, (address(v2), ""))));
-        assertEq(LicenceV2Mock(address(licence)).version(), 2);
+        _decide(
+            _one(
+                address(licence),
+                0,
+                abi.encodeCall(licence.upgradeToAndCall, (address(v2), abi.encodeCall(SuperLicenceV2.initializeV2, ())))
+            )
+        );
+        assertEq(licence.version(), "2");
         assertEq(licence.points(leclerc), 5);
     }
 
-    function _c(address target, bytes memory data) internal pure returns (StewardsPanel.Call memory) {
-        return StewardsPanel.Call(target, 0, data);
+    function test_FinesPayForTheGasOfTheNextDecision() public {
+        bytes32 doc = keccak256("Doc 68 - Infringement - Car 16");
+        vm.prank(ferrari);
+        bond.depositBond{value: 1 ether}();
+        _decide(_one(address(bond), 0, abi.encodeCall(bond.applyFine, (ferrari, 30_000, doc))));
+        uint256 treasury = address(panel).balance;
+        assertGt(treasury, 0);
+
+        BaseAccount.Call[] memory calls = new BaseAccount.Call[](2);
+        calls[0] = _c(address(licence), abi.encodeCall(licence.addPoints, (leclerc, 2, doc)));
+        calls[1] = _c(address(bond), abi.encodeCall(bond.closeWeekend, ()));
+        PackedUserOperation memory op = _userOp(panel, calls);
+        op.signature = _sign(_keys(KEY_2, KEY_3), entryPoint.getUserOpHash(op));
+
+        address payable bundler = payable(makeAddr("bundler"));
+        vm.prank(bundler, bundler);
+        entryPoint.handleOps(_ops(op), bundler);
+
+        assertEq(licence.points(leclerc), 2);
+        assertEq(uint256(bond.weekendStatus(1)), uint256(TeamBond.WeekendStatus.Closed));
+        assertLt(address(panel).balance, treasury);
+        assertEq(address(panel).balance + panel.entryPointDeposit() + bundler.balance, treasury);
     }
 
-    function _decide(StewardsPanel.Call[] memory calls) internal {
+    function test_LicenceUpgradeThroughTheEntryPoint() public {
+        _decide(_one(address(licence), 0, abi.encodeCall(licence.addPoints, (leclerc, 3, bytes32(0)))));
+        vm.deal(address(panel), 1 ether);
+
+        SuperLicenceV2 v2 = new SuperLicenceV2();
+        PackedUserOperation memory op = _userOp(
+            panel,
+            _one(
+                address(licence),
+                0,
+                abi.encodeCall(licence.upgradeToAndCall, (address(v2), abi.encodeCall(SuperLicenceV2.initializeV2, ())))
+            )
+        );
+        op.signature = _sign(_keys(KEY_1, KEY_3), entryPoint.getUserOpHash(op));
+        address payable bundler = payable(makeAddr("bundler"));
+        vm.prank(bundler, bundler);
+        entryPoint.handleOps(_ops(op), bundler);
+
+        assertEq(licence.version(), "2");
+        assertEq(licence.points(leclerc), 3);
+        vm.warp(vm.getBlockTimestamp() + 365 days);
+        assertEq(licence.points(leclerc), 0);
+    }
+
+    function _c(address target, bytes memory data) internal pure returns (BaseAccount.Call memory) {
+        return BaseAccount.Call(target, 0, data);
+    }
+
+    function _decide(BaseAccount.Call[] memory calls) internal {
         bytes memory sigs = _sign(_keys(KEY_1, KEY_2), _digest(panel, calls, panel.nonce()));
-        panel.execute(calls, sigs);
+        panel.executeDecision(calls, sigs);
     }
 }

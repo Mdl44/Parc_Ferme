@@ -2,6 +2,10 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
+import {BaseAccount} from "@account-abstraction/contracts/core/BaseAccount.sol";
+import {EntryPoint} from "@account-abstraction/contracts/core/EntryPoint.sol";
+import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 import {StewardsPanel} from "../../src/StewardsPanel.sol";
 
 abstract contract PanelHelper is Test {
@@ -10,8 +14,56 @@ abstract contract PanelHelper is Test {
         keccak256("Batch(Call[] calls,uint256 nonce)Call(address target,uint256 value,bytes data)");
     bytes32 private constant DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 private constant USEROP_TYPEHASH = keccak256(
+        "PackedUserOperation(address sender,uint256 nonce,bytes initCode,bytes callData,bytes32 accountGasLimits,uint256 preVerificationGas,bytes32 gasFees,bytes paymasterAndData)"
+    );
 
-    function _digest(StewardsPanel panel, StewardsPanel.Call[] memory calls, uint256 nonce)
+    uint128 internal constant VERIFICATION_GAS = 300_000;
+    uint128 internal constant CALL_GAS = 1_000_000;
+    uint256 internal constant PRE_VERIFICATION_GAS = 60_000;
+    uint128 internal constant GAS_PRICE = 2 gwei;
+
+    IEntryPoint internal entryPoint = IEntryPoint(address(new EntryPoint()));
+
+    function _userOp(StewardsPanel panel, BaseAccount.Call[] memory calls)
+        internal
+        view
+        returns (PackedUserOperation memory op)
+    {
+        op.sender = address(panel);
+        op.nonce = entryPoint.getNonce(address(panel), 0);
+        op.callData = abi.encodeCall(BaseAccount.executeBatch, (calls));
+        op.accountGasLimits = bytes32(uint256(VERIFICATION_GAS) << 128 | CALL_GAS);
+        op.preVerificationGas = PRE_VERIFICATION_GAS;
+        op.gasFees = bytes32(uint256(GAS_PRICE) << 128 | GAS_PRICE);
+    }
+
+    function _userOpDigest(PackedUserOperation memory op) internal view returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                USEROP_TYPEHASH,
+                op.sender,
+                op.nonce,
+                keccak256(op.initCode),
+                keccak256(op.callData),
+                op.accountGasLimits,
+                op.preVerificationGas,
+                op.gasFees,
+                keccak256(op.paymasterAndData)
+            )
+        );
+        bytes32 domain = keccak256(
+            abi.encode(DOMAIN_TYPEHASH, keccak256("ERC4337"), keccak256("1"), block.chainid, address(entryPoint))
+        );
+        return keccak256(abi.encodePacked("\x19\x01", domain, structHash));
+    }
+
+    function _ops(PackedUserOperation memory op) internal pure returns (PackedUserOperation[] memory ops) {
+        ops = new PackedUserOperation[](1);
+        ops[0] = op;
+    }
+
+    function _digest(StewardsPanel panel, BaseAccount.Call[] memory calls, uint256 nonce)
         internal
         view
         returns (bytes32)
@@ -60,9 +112,9 @@ abstract contract PanelHelper is Test {
     function _one(address target, uint256 value, bytes memory data)
         internal
         pure
-        returns (StewardsPanel.Call[] memory calls)
+        returns (BaseAccount.Call[] memory calls)
     {
-        calls = new StewardsPanel.Call[](1);
-        calls[0] = StewardsPanel.Call(target, value, data);
+        calls = new BaseAccount.Call[](1);
+        calls[0] = BaseAccount.Call(target, value, data);
     }
 }

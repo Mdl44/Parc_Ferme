@@ -24,7 +24,7 @@ contract BondHandler is Test {
             address team = makeAddr(string.concat("team", vm.toString(i)));
             teams.push(team);
             vm.prank(panel_);
-            bond_.registerTeam(team);
+            bond_.registerTeam(team, "Team");
         }
         vm.prank(panel_);
         bond_.openWeekend();
@@ -58,7 +58,7 @@ contract BondHandler is Test {
         address team = teams[teamSeed % teams.length];
         eurAmount = bound(eurAmount, 0, 3_000_000);
         vm.prank(panel);
-        try bond.applyFine(team, eurAmount) returns (uint256, uint256 fromBond, uint256) {
+        try bond.applyFine(team, eurAmount, bytes32(0)) returns (uint256, uint256 fromBond, uint256) {
             totalToPanel += fromBond;
         } catch {}
     }
@@ -132,7 +132,7 @@ contract LicenceHandler is Test {
             address driver = makeAddr(string.concat("driver", vm.toString(i)));
             drivers.push(driver);
             vm.prank(panel_);
-            licence_.mintLicence(driver);
+            licence_.mintLicence(driver, "Driver", "DRV", 1);
         }
     }
 
@@ -142,9 +142,9 @@ contract LicenceHandler is Test {
 
     function addPoints(uint256 seed, uint256 amount) external {
         address driver = drivers[seed % drivers.length];
-        amount = bound(amount, 0, 20);
+        amount = bound(amount, 1, 20);
         vm.prank(panel);
-        licence.addPoints(driver, amount);
+        licence.addPoints(driver, amount, bytes32(0));
         expectedPoints[driver] += amount;
     }
 

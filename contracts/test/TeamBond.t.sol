@@ -140,28 +140,29 @@ contract TeamBondTest is Test {
     }
 
     function test_RegisterTeam() public {
-        vm.expectEmit(true, false, false, false, address(bond));
-        emit TeamBond.TeamRegistered(ferrari);
+        vm.expectEmit(true, false, false, true, address(bond));
+        emit TeamBond.TeamRegistered(ferrari, "Scuderia Ferrari HP");
 
         vm.prank(panel);
-        bond.registerTeam(ferrari);
+        bond.registerTeam(ferrari, "Scuderia Ferrari HP");
 
         assertTrue(bond.isTeam(ferrari));
+        assertEq(bond.teamName(ferrari), "Scuderia Ferrari HP");
         assertFalse(bond.isTeam(mclaren));
     }
 
     function test_RevertWhen_RegisteringTwiceOrZeroOrNotPanel() public {
         vm.startPrank(panel);
-        bond.registerTeam(ferrari);
+        bond.registerTeam(ferrari, "Team");
         vm.expectRevert(abi.encodeWithSelector(TeamBond.AlreadyRegistered.selector, ferrari));
-        bond.registerTeam(ferrari);
+        bond.registerTeam(ferrari, "Team");
         vm.expectRevert(TeamBond.ZeroAddress.selector);
-        bond.registerTeam(address(0));
+        bond.registerTeam(address(0), "Team");
         vm.stopPrank();
 
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(TeamBond.NotPanel.selector, stranger));
-        bond.registerTeam(mclaren);
+        bond.registerTeam(mclaren, "Team");
     }
 
     function test_Settings() public {
@@ -234,7 +235,7 @@ contract TeamBondTest is Test {
 
     function test_RevertWhen_DepositWithoutOpenWeekend() public {
         vm.prank(panel);
-        bond.registerTeam(ferrari);
+        bond.registerTeam(ferrari, "Team");
 
         vm.prank(ferrari);
         vm.expectRevert(TeamBond.WeekendNotOpen.selector);
@@ -312,10 +313,10 @@ contract TeamBondTest is Test {
         uint256 fine = bond.quoteFineWei(10_000);
 
         vm.expectEmit(true, true, false, true, address(bond));
-        emit TeamBond.FineApplied(1, ferrari, 10_000, fine, fine, 0);
+        emit TeamBond.FineApplied(1, ferrari, 10_000, fine, fine, 0, bytes32(0));
 
         vm.prank(panel);
-        (uint256 fineWei, uint256 fromBond, uint256 newDebt) = bond.applyFine(ferrari, 10_000);
+        (uint256 fineWei, uint256 fromBond, uint256 newDebt) = bond.applyFine(ferrari, 10_000, bytes32(0));
 
         assertEq(fineWei, fine);
         assertEq(fromBond, fine);
@@ -334,7 +335,7 @@ contract TeamBondTest is Test {
 
         uint256 fine = bond.quoteFineWei(10_000);
         vm.prank(panel);
-        (, uint256 fromBond, uint256 newDebt) = bond.applyFine(ferrari, 10_000);
+        (, uint256 fromBond, uint256 newDebt) = bond.applyFine(ferrari, 10_000, bytes32(0));
 
         assertEq(fromBond, 0.1 ether);
         assertEq(newDebt, fine - 0.1 ether);
@@ -349,7 +350,7 @@ contract TeamBondTest is Test {
         uint256 fine = bond.quoteFineWei(5_000);
 
         vm.prank(panel);
-        (, uint256 fromBond, uint256 newDebt) = bond.applyFine(mclaren, 5_000);
+        (, uint256 fromBond, uint256 newDebt) = bond.applyFine(mclaren, 5_000, bytes32(0));
 
         assertEq(fromBond, 0);
         assertEq(newDebt, fine);
@@ -366,7 +367,7 @@ contract TeamBondTest is Test {
         _deposit(ferrari, 1 ether);
 
         vm.prank(panel);
-        (, uint256 fromBond,) = bond.applyFine(ferrari, 10_000);
+        (, uint256 fromBond,) = bond.applyFine(ferrari, 10_000, bytes32(0));
 
         assertEq(bond.bondOf(1, ferrari), 1 ether);
         assertEq(bond.bondOf(2, ferrari), 1 ether - fromBond);
@@ -376,21 +377,21 @@ contract TeamBondTest is Test {
         _openWithTeams();
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(TeamBond.NotPanel.selector, stranger));
-        bond.applyFine(ferrari, 100);
+        bond.applyFine(ferrari, 100, bytes32(0));
     }
 
     function test_RevertWhen_FiningAnUnregisteredTeam() public {
         _openWithTeams();
         vm.prank(panel);
         vm.expectRevert(abi.encodeWithSelector(TeamBond.NotATeam.selector, stranger));
-        bond.applyFine(stranger, 100);
+        bond.applyFine(stranger, 100, bytes32(0));
     }
 
     function test_RevertWhen_FineWithoutOpenWeekend() public {
         vm.startPrank(panel);
-        bond.registerTeam(ferrari);
+        bond.registerTeam(ferrari, "Team");
         vm.expectRevert(TeamBond.WeekendNotOpen.selector);
-        bond.applyFine(ferrari, 100);
+        bond.applyFine(ferrari, 100, bytes32(0));
         vm.stopPrank();
     }
 
@@ -401,7 +402,7 @@ contract TeamBondTest is Test {
 
         vm.prank(panel);
         vm.expectRevert(abi.encodeWithSelector(TeamBond.StalePrice.selector, address(eurUsd), 1));
-        bond.applyFine(ferrari, 10_000);
+        bond.applyFine(ferrari, 10_000, bytes32(0));
 
         assertEq(bond.bondOf(1, ferrari), 1 ether);
     }
@@ -411,7 +412,7 @@ contract TeamBondTest is Test {
         TeamBond b = new TeamBond(address(rejecter), ethUsd, eurUsd, MIN_BOND, FINE_SCALE, MAX_AGE);
 
         vm.startPrank(address(rejecter));
-        b.registerTeam(ferrari);
+        b.registerTeam(ferrari, "Team");
         b.openWeekend();
         vm.stopPrank();
 
@@ -421,7 +422,7 @@ contract TeamBondTest is Test {
         uint256 fine = b.quoteFineWei(10_000);
         vm.prank(address(rejecter));
         vm.expectRevert(abi.encodeWithSelector(TeamBond.TransferFailed.selector, address(rejecter), fine));
-        b.applyFine(ferrari, 10_000);
+        b.applyFine(ferrari, 10_000, bytes32(0));
     }
 
     function test_PayDebt_PartialThenFull() public {
@@ -484,7 +485,7 @@ contract TeamBondTest is Test {
         _openWithTeams();
         _deposit(ferrari, 1 ether);
         vm.prank(panel);
-        (, uint256 fromBond,) = bond.applyFine(ferrari, 10_000);
+        (, uint256 fromBond,) = bond.applyFine(ferrari, 10_000, bytes32(0));
         _close();
 
         uint256 before = ferrari.balance;
@@ -543,8 +544,8 @@ contract TeamBondTest is Test {
     function test_Withdraw_ReentrancyAttackFails() public {
         ReentrantTeam attacker = new ReentrantTeam(bond);
         vm.startPrank(panel);
-        bond.registerTeam(address(attacker));
-        bond.registerTeam(mclaren);
+        bond.registerTeam(address(attacker), "Attacker");
+        bond.registerTeam(mclaren, "Team");
         bond.openWeekend();
         vm.stopPrank();
 
@@ -571,8 +572,8 @@ contract TeamBondTest is Test {
 
     function _openWithTeams() internal {
         vm.startPrank(panel);
-        bond.registerTeam(ferrari);
-        bond.registerTeam(mclaren);
+        bond.registerTeam(ferrari, "Team");
+        bond.registerTeam(mclaren, "Team");
         bond.openWeekend();
         vm.stopPrank();
     }
@@ -584,13 +585,13 @@ contract TeamBondTest is Test {
 
     function _createDebt(address team) internal {
         vm.startPrank(panel);
-        bond.registerTeam(team);
+        bond.registerTeam(team, "Team");
         bond.openWeekend();
         bond.setFineScale(1);
         vm.stopPrank();
 
         _deposit(team, MIN_BOND);
         vm.prank(panel);
-        bond.applyFine(team, 10_000);
+        bond.applyFine(team, 10_000, bytes32(0));
     }
 }

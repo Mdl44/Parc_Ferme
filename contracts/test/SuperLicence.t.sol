@@ -7,15 +7,12 @@ import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.s
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {SuperLicence} from "../src/SuperLicence.sol";
+import {SuperLicenceV2} from "../src/SuperLicenceV2.sol";
 import {IERC5192} from "../src/interfaces/IERC5192.sol";
 
-contract SuperLicenceV2 is SuperLicence {
-    function version() external pure returns (uint256) {
-        return 2;
-    }
-}
-
 contract SuperLicenceTest is Test {
+    bytes32 internal constant DOC = keccak256("2026 Dutch Grand Prix - Doc 63");
+
     SuperLicence internal licence;
     SuperLicence internal implementation;
 
@@ -54,7 +51,7 @@ contract SuperLicenceTest is Test {
 
     function test_MintLicence() public {
         vm.prank(panel);
-        uint256 id = licence.mintLicence(verstappen);
+        uint256 id = licence.mintLicence(verstappen, "Driver", "DRV", 1);
 
         assertEq(id, licence.licenceId(verstappen));
         assertEq(licence.ownerOf(id), verstappen);
@@ -64,35 +61,35 @@ contract SuperLicenceTest is Test {
     function test_MintLicence_EmitsEvents() public {
         uint256 id = licence.licenceId(verstappen);
 
-        vm.expectEmit(true, true, false, false, address(licence));
-        emit SuperLicence.LicenceIssued(verstappen, id);
+        vm.expectEmit(true, true, false, true, address(licence));
+        emit SuperLicence.LicenceIssued(verstappen, id, "Driver", 1);
         vm.expectEmit(false, false, false, true, address(licence));
         emit IERC5192.Locked(id);
 
         vm.prank(panel);
-        licence.mintLicence(verstappen);
+        licence.mintLicence(verstappen, "Driver", "DRV", 1);
     }
 
     function test_RevertWhen_MintTwiceForSameDriver() public {
         vm.startPrank(panel);
-        licence.mintLicence(verstappen);
+        licence.mintLicence(verstappen, "Driver", "DRV", 1);
         vm.expectRevert(abi.encodeWithSelector(SuperLicence.LicenceAlreadyIssued.selector, verstappen));
-        licence.mintLicence(verstappen);
+        licence.mintLicence(verstappen, "Driver", "DRV", 1);
         vm.stopPrank();
     }
 
     function test_RevertWhen_NonPanelMints() public {
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(SuperLicence.NotPanel.selector, stranger));
-        licence.mintLicence(verstappen);
+        licence.mintLicence(verstappen, "Driver", "DRV", 1);
     }
 
     function test_AddPoints_Accumulates() public {
         _issue(verstappen);
 
         vm.startPrank(panel);
-        licence.addPoints(verstappen, 3);
-        licence.addPoints(verstappen, 2);
+        licence.addPoints(verstappen, 3, bytes32(0));
+        licence.addPoints(verstappen, 2, bytes32(0));
         vm.stopPrank();
 
         assertEq(licence.points(verstappen), 5);
@@ -102,23 +99,73 @@ contract SuperLicenceTest is Test {
     function test_AddPoints_EmitsEvent() public {
         _issue(verstappen);
 
-        vm.expectEmit(true, false, false, true, address(licence));
-        emit SuperLicence.PointsAdded(verstappen, 4, 4);
+        vm.expectEmit(true, true, false, true, address(licence));
+        emit SuperLicence.PointsAdded(verstappen, 4, 4, DOC);
 
         vm.prank(panel);
-        licence.addPoints(verstappen, 4);
+        licence.addPoints(verstappen, 4, DOC);
+    }
+
+    function test_RevertWhen_AddingZeroPoints() public {
+        _issue(verstappen);
+
+        vm.prank(panel);
+        vm.expectRevert(SuperLicence.ZeroPoints.selector);
+        licence.addPoints(verstappen, 0, DOC);
+    }
+
+    function test_MintLicence_StoresTheProfile() public {
+        vm.prank(panel);
+        licence.mintLicence(verstappen, "Max Verstappen", "VER", 3);
+
+        SuperLicence.Profile memory p = licence.profileOf(verstappen);
+        assertEq(p.name, "Max Verstappen");
+        assertEq(p.code, "VER");
+        assertEq(p.carNumber, 3);
+        assertEq(licence.version(), "1");
+    }
+
+    function test_TokenUri_IsOnChainJsonThatFollowsThePoints() public {
+        uint256 id = _issue(verstappen);
+
+        string memory before = licence.tokenURI(id);
+        assertTrue(_startsWith(before, "data:application/json;base64,"));
+
+        vm.prank(panel);
+        licence.addPoints(verstappen, 3, DOC);
+        assertNotEq(licence.tokenURI(id), before);
+    }
+
+    function test_TokenUri_ChangesWhenTheDriverIsBanned() public {
+        uint256 id = _issue(verstappen);
+        vm.startPrank(panel);
+        licence.addPoints(verstappen, 11, DOC);
+        string memory active = licence.tokenURI(id);
+        licence.addPoints(verstappen, 1, DOC);
+        vm.stopPrank();
+
+        assertTrue(licence.isBanned(verstappen));
+        string memory banned = licence.tokenURI(id);
+        assertTrue(_startsWith(banned, "data:application/json;base64,"));
+        assertNotEq(banned, active);
+    }
+
+    function test_RevertWhen_TokenUriOfMissingLicence() public {
+        uint256 id = licence.licenceId(hamilton);
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, id));
+        licence.tokenURI(id);
     }
 
     function test_AddPoints_BanTriggersAtTwelve() public {
         _issue(verstappen);
 
         vm.startPrank(panel);
-        licence.addPoints(verstappen, 11);
+        licence.addPoints(verstappen, 11, bytes32(0));
         assertFalse(licence.isBanned(verstappen));
 
         vm.expectEmit(true, false, false, true, address(licence));
         emit SuperLicence.BanTriggered(verstappen, 12);
-        licence.addPoints(verstappen, 1);
+        licence.addPoints(verstappen, 1, bytes32(0));
         vm.stopPrank();
 
         assertTrue(licence.isBanned(verstappen));
@@ -128,9 +175,9 @@ contract SuperLicenceTest is Test {
         _issue(verstappen);
 
         vm.startPrank(panel);
-        licence.addPoints(verstappen, 12);
+        licence.addPoints(verstappen, 12, bytes32(0));
         vm.recordLogs();
-        licence.addPoints(verstappen, 2);
+        licence.addPoints(verstappen, 2, bytes32(0));
         vm.stopPrank();
 
         assertEq(vm.getRecordedLogs().length, 1);
@@ -139,7 +186,7 @@ contract SuperLicenceTest is Test {
     function test_RevertWhen_AddPointsWithoutLicence() public {
         vm.prank(panel);
         vm.expectRevert(abi.encodeWithSelector(SuperLicence.NoLicence.selector, hamilton));
-        licence.addPoints(hamilton, 1);
+        licence.addPoints(hamilton, 1, bytes32(0));
     }
 
     function test_RevertWhen_NonPanelAddsPoints() public {
@@ -147,14 +194,14 @@ contract SuperLicenceTest is Test {
 
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(SuperLicence.NotPanel.selector, stranger));
-        licence.addPoints(verstappen, 1);
+        licence.addPoints(verstappen, 1, bytes32(0));
     }
 
     function test_ServeBan_RemovesTwelvePointsAndKeepsTheRest() public {
         _issue(verstappen);
 
         vm.startPrank(panel);
-        licence.addPoints(verstappen, 14);
+        licence.addPoints(verstappen, 14, bytes32(0));
 
         vm.expectEmit(true, false, false, true, address(licence));
         emit SuperLicence.BanServed(verstappen, 2);
@@ -169,7 +216,7 @@ contract SuperLicenceTest is Test {
         _issue(verstappen);
 
         vm.startPrank(panel);
-        licence.addPoints(verstappen, 11);
+        licence.addPoints(verstappen, 11, bytes32(0));
         vm.expectRevert(abi.encodeWithSelector(SuperLicence.NotBanned.selector, verstappen));
         licence.serveBan(verstappen);
         vm.stopPrank();
@@ -236,7 +283,7 @@ contract SuperLicenceTest is Test {
 
         vm.prank(panel);
         vm.expectRevert(abi.encodeWithSelector(SuperLicence.NotPanel.selector, panel));
-        licence.mintLicence(verstappen);
+        licence.mintLicence(verstappen, "Driver", "DRV", 1);
     }
 
     function test_RevertWhen_SetPanelToZero() public {
@@ -254,13 +301,13 @@ contract SuperLicenceTest is Test {
     function test_Upgrade_ByPanelKeepsData() public {
         _issue(verstappen);
         vm.prank(panel);
-        licence.addPoints(verstappen, 5);
+        licence.addPoints(verstappen, 5, bytes32(0));
 
         SuperLicenceV2 v2 = new SuperLicenceV2();
         vm.prank(panel);
-        licence.upgradeToAndCall(address(v2), "");
+        licence.upgradeToAndCall(address(v2), abi.encodeCall(SuperLicenceV2.initializeV2, ()));
 
-        assertEq(SuperLicenceV2(address(licence)).version(), 2);
+        assertEq(licence.version(), "2");
         assertEq(licence.points(verstappen), 5);
         assertEq(licence.ownerOf(licence.licenceId(verstappen)), verstappen);
     }
@@ -274,21 +321,24 @@ contract SuperLicenceTest is Test {
     }
 
     function testFuzz_IsBannedMatchesThreshold(uint96 amount) public {
+        amount = uint96(bound(amount, 1, type(uint96).max));
         _issue(verstappen);
 
         vm.prank(panel);
-        licence.addPoints(verstappen, amount);
+        licence.addPoints(verstappen, amount, bytes32(0));
 
         assertEq(licence.points(verstappen), amount);
         assertEq(licence.isBanned(verstappen), amount >= licence.BAN_THRESHOLD());
     }
 
     function testFuzz_PointsAddUpAndServeBan(uint48 first, uint48 second) public {
+        first = uint48(bound(first, 1, type(uint48).max));
+        second = uint48(bound(second, 1, type(uint48).max));
         _issue(verstappen);
 
         vm.startPrank(panel);
-        licence.addPoints(verstappen, first);
-        licence.addPoints(verstappen, second);
+        licence.addPoints(verstappen, first, bytes32(0));
+        licence.addPoints(verstappen, second, bytes32(0));
         uint256 total = uint256(first) + uint256(second);
         assertEq(licence.points(verstappen), total);
 
@@ -302,8 +352,18 @@ contract SuperLicenceTest is Test {
         vm.stopPrank();
     }
 
+    function _startsWith(string memory text, string memory prefix) internal pure returns (bool) {
+        bytes memory t = bytes(text);
+        bytes memory p = bytes(prefix);
+        if (t.length < p.length) return false;
+        for (uint256 i = 0; i < p.length; i++) {
+            if (t[i] != p[i]) return false;
+        }
+        return true;
+    }
+
     function _issue(address driver) internal returns (uint256 id) {
         vm.prank(panel);
-        id = licence.mintLicence(driver);
+        id = licence.mintLicence(driver, "Driver", "DRV", 1);
     }
 }

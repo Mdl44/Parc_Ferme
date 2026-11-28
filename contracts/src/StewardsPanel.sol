@@ -5,14 +5,12 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {BaseAccount} from "@account-abstraction/contracts/core/BaseAccount.sol";
+import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
+import {SIG_VALIDATION_FAILED, SIG_VALIDATION_SUCCESS} from "@account-abstraction/contracts/core/Helpers.sol";
 
-contract StewardsPanel is EIP712, ReentrancyGuard, IERC1271 {
-    struct Call {
-        address target;
-        uint256 value;
-        bytes data;
-    }
-
+contract StewardsPanel is BaseAccount, EIP712, ReentrancyGuard, IERC1271 {
     error NotThePanel(address caller);
     error InvalidSetup();
     error EmptyBatch();
@@ -22,12 +20,15 @@ contract StewardsPanel is EIP712, ReentrancyGuard, IERC1271 {
     error AlreadyASteward(address account);
 
     event Executed(uint256 indexed nonce, address indexed executor, uint256 calls);
+    event ExecutedViaEntryPoint(uint256 calls);
     event Received(address indexed from, uint256 amount);
     event StewardReplaced(address indexed oldSteward, address indexed newSteward);
 
     bytes32 private constant CALL_TYPEHASH = keccak256("Call(address target,uint256 value,bytes data)");
     bytes32 private constant BATCH_TYPEHASH =
         keccak256("Batch(Call[] calls,uint256 nonce)Call(address target,uint256 value,bytes data)");
+
+    IEntryPoint private immutable _entryPoint;
 
     uint256 public immutable threshold;
 
@@ -41,8 +42,12 @@ contract StewardsPanel is EIP712, ReentrancyGuard, IERC1271 {
         _;
     }
 
-    constructor(address[] memory stewards_, uint256 threshold_) EIP712("Parc Ferme Stewards Panel", "1") {
-        if (threshold_ == 0 || threshold_ > stewards_.length) revert InvalidSetup();
+    constructor(address[] memory stewards_, uint256 threshold_, IEntryPoint entryPoint_)
+        EIP712("Parc Ferme Stewards Panel", "1")
+    {
+        if (threshold_ == 0 || threshold_ > stewards_.length || address(entryPoint_) == address(0)) {
+            revert InvalidSetup();
+        }
 
         for (uint256 i = 0; i < stewards_.length; i++) {
             address steward = stewards_[i];
@@ -51,26 +56,30 @@ contract StewardsPanel is EIP712, ReentrancyGuard, IERC1271 {
             _stewards.push(steward);
         }
         threshold = threshold_;
+        _entryPoint = entryPoint_;
     }
 
     receive() external payable {
         emit Received(msg.sender, msg.value);
     }
 
-    function execute(Call[] calldata calls, bytes calldata signatures) external nonReentrant {
+    function executeDecision(Call[] calldata calls, bytes calldata signatures) external nonReentrant {
         if (calls.length == 0) revert EmptyBatch();
 
         uint256 current = nonce;
         if (!_signaturesValid(hashBatch(calls, current), signatures)) revert InvalidSignatures();
 
         nonce = current + 1;
-
-        for (uint256 i = 0; i < calls.length; i++) {
-            // forge-lint: disable-next-line(arbitrary-send-eth)
-            (bool ok, bytes memory reason) = calls[i].target.call{value: calls[i].value}(calls[i].data);
-            if (!ok) revert CallFailed(i, reason);
-        }
+        _run(calls);
         emit Executed(current, msg.sender, calls.length);
+    }
+
+    function executeBatch(Call[] calldata calls) external override nonReentrant {
+        _requireForExecute();
+        if (calls.length == 0) revert EmptyBatch();
+
+        _run(calls);
+        emit ExecutedViaEntryPoint(calls.length);
     }
 
     function replaceSteward(address oldSteward, address newSteward) external onlySelf {
@@ -96,6 +105,14 @@ contract StewardsPanel is EIP712, ReentrancyGuard, IERC1271 {
         return _stewards;
     }
 
+    function entryPoint() public view override returns (IEntryPoint) {
+        return _entryPoint;
+    }
+
+    function entryPointDeposit() external view returns (uint256) {
+        return _entryPoint.balanceOf(address(this));
+    }
+
     function hashBatch(Call[] calldata calls, uint256 nonce_) public view returns (bytes32) {
         bytes32[] memory callHashes = new bytes32[](calls.length);
         for (uint256 i = 0; i < calls.length; i++) {
@@ -104,6 +121,23 @@ contract StewardsPanel is EIP712, ReentrancyGuard, IERC1271 {
         }
         bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(abi.encodePacked(callHashes)), nonce_));
         return _hashTypedDataV4(structHash);
+    }
+
+    function _validateSignature(PackedUserOperation calldata userOp, bytes32 userOpHash)
+        internal
+        view
+        override
+        returns (uint256 validationData)
+    {
+        return _signaturesValid(userOpHash, userOp.signature) ? SIG_VALIDATION_SUCCESS : SIG_VALIDATION_FAILED;
+    }
+
+    function _run(Call[] calldata calls) private {
+        for (uint256 i = 0; i < calls.length; i++) {
+            // forge-lint: disable-next-line(arbitrary-send-eth)
+            (bool ok, bytes memory reason) = calls[i].target.call{value: calls[i].value}(calls[i].data);
+            if (!ok) revert CallFailed(i, reason);
+        }
     }
 
     function _signaturesValid(bytes32 digest, bytes calldata signatures) internal view returns (bool) {

@@ -5,6 +5,8 @@ import {Script, console} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {EntryPoint} from "@account-abstraction/contracts/core/EntryPoint.sol";
+import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {StewardsPanel} from "../src/StewardsPanel.sol";
 import {SuperLicence} from "../src/SuperLicence.sol";
 import {TeamBond} from "../src/TeamBond.sol";
@@ -14,14 +16,14 @@ import {MockAggregator} from "../src/mocks/MockAggregator.sol";
 contract Deploy is Script {
     address internal constant SEPOLIA_ETH_USD = 0x694AA1769357215DE4FAC081bf1f309aDC325306;
     address internal constant SEPOLIA_EUR_USD = 0x1a81afB8146aeFfCFc5E50e8479e826E7D55b910;
+    address internal constant SEPOLIA_ENTRY_POINT = 0x433709009B8330FDa32311DF1C2AFA402eD8D009;
 
-    address internal constant ANVIL_STEWARD_1 = 0x70997970C51812dc3A010C7d01b50e0d17dc79C8;
-    address internal constant ANVIL_STEWARD_2 = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC;
-    address internal constant ANVIL_STEWARD_3 = 0x90F79bf6eB2c4F870365E785982E1f101E9b4A67;
+    string internal constant ANVIL_MNEMONIC = "test test test test test test test test test test test junk";
 
     uint256 internal constant THRESHOLD = 2;
 
     struct Deployment {
+        address entryPoint;
         StewardsPanel panel;
         SuperLicence licence;
         address licenceImplementation;
@@ -42,9 +44,9 @@ contract Deploy is Script {
         uint256 maxPriceAge = vm.envOr("MAX_PRICE_AGE", local ? uint256(1 days) : uint256(25 hours));
 
         address[] memory stewards = new address[](3);
-        stewards[0] = vm.envOr("STEWARD_1", local ? ANVIL_STEWARD_1 : address(0));
-        stewards[1] = vm.envOr("STEWARD_2", local ? ANVIL_STEWARD_2 : address(0));
-        stewards[2] = vm.envOr("STEWARD_3", local ? ANVIL_STEWARD_3 : address(0));
+        stewards[0] = vm.envOr("STEWARD_1", local ? anvilAccount(1) : address(0));
+        stewards[1] = vm.envOr("STEWARD_2", local ? anvilAccount(2) : address(0));
+        stewards[2] = vm.envOr("STEWARD_3", local ? anvilAccount(3) : address(0));
 
         vm.startBroadcast();
         (, address deployer,) = vm.readCallers();
@@ -52,12 +54,14 @@ contract Deploy is Script {
         if (local) {
             d.ethUsdFeed = address(new MockAggregator("ETH / USD", 8, 3000e8));
             d.eurUsdFeed = address(new MockAggregator("EUR / USD", 8, 1.1e8));
+            d.entryPoint = address(new EntryPoint());
         } else {
             d.ethUsdFeed = SEPOLIA_ETH_USD;
             d.eurUsdFeed = SEPOLIA_EUR_USD;
+            d.entryPoint = SEPOLIA_ENTRY_POINT;
         }
 
-        d.panel = new StewardsPanel(stewards, THRESHOLD);
+        d.panel = new StewardsPanel(stewards, THRESHOLD, IEntryPoint(d.entryPoint));
 
         d.licenceImplementation = address(new SuperLicence());
         d.licence = SuperLicence(
@@ -81,6 +85,7 @@ contract Deploy is Script {
         d.fineScale = fineScale;
 
         console.log("Deployer:         ", deployer);
+        console.log("EntryPoint:       ", d.entryPoint);
         console.log("StewardsPanel:    ", address(d.panel));
         console.log("SuperLicence:     ", address(d.licence), "(proxy)");
         console.log("  implementation: ", d.licenceImplementation);
@@ -97,12 +102,17 @@ contract Deploy is Script {
         }
     }
 
+    function anvilAccount(uint32 index) public pure returns (address) {
+        return vm.addr(vm.deriveKey(ANVIL_MNEMONIC, index));
+    }
+
     function _exportToFrontend(Deployment memory d, address deployer, address[] memory stewards) internal {
         string memory obj = "deployment";
         vm.serializeUint(obj, "chainId", block.chainid);
         vm.serializeUint(obj, "fromBlock", block.number);
         vm.serializeAddress(obj, "deployer", deployer);
         vm.serializeAddress(obj, "stewards", stewards);
+        vm.serializeAddress(obj, "entryPoint", d.entryPoint);
         vm.serializeAddress(obj, "stewardsPanel", address(d.panel));
         vm.serializeAddress(obj, "superLicence", address(d.licence));
         vm.serializeAddress(obj, "superLicenceImplementation", d.licenceImplementation);

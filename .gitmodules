@@ -10,3 +10,6 @@
 [submodule "contracts/lib/chainlink-brownie-contracts"]
 	path = contracts/lib/chainlink-brownie-contracts
 	url = https://github.com/smartcontractkit/chainlink-brownie-contracts
+[submodule "contracts/lib/account-abstraction"]
+	path = contracts/lib/account-abstraction
+	url = https://github.com/eth-infinitism/account-abstraction.git

@@ -33,7 +33,7 @@ contract TeamBond is ITeamBond, ReentrancyGuard {
 
     event WeekendOpened(uint256 indexed weekendId);
     event WeekendClosed(uint256 indexed weekendId);
-    event TeamRegistered(address indexed team);
+    event TeamRegistered(address indexed team, string name);
     event BondDeposited(uint256 indexed weekendId, address indexed team, uint256 amount, uint256 bondTotal);
     event FineApplied(
         uint256 indexed weekendId,
@@ -41,7 +41,8 @@ contract TeamBond is ITeamBond, ReentrancyGuard {
         uint256 eurAmount,
         uint256 fineWei,
         uint256 fromBond,
-        uint256 newDebt
+        uint256 newDebt,
+        bytes32 indexed decision
     );
     event DebtPaid(address indexed team, uint256 amount, uint256 remainingDebt);
     event BondWithdrawn(uint256 indexed weekendId, address indexed team, uint256 amount);
@@ -64,6 +65,8 @@ contract TeamBond is ITeamBond, ReentrancyGuard {
 
     mapping(uint256 weekendId => WeekendStatus) public weekendStatus;
     mapping(address team => bool) public isTeam;
+
+    mapping(address team => string) public teamName;
 
     mapping(address team => uint256) public override debtOf;
 
@@ -119,12 +122,13 @@ contract TeamBond is ITeamBond, ReentrancyGuard {
         emit WeekendClosed(id);
     }
 
-    function registerTeam(address team) external onlyPanel {
+    function registerTeam(address team, string calldata name) external onlyPanel {
         if (team == address(0)) revert ZeroAddress();
         if (isTeam[team]) revert AlreadyRegistered(team);
 
         isTeam[team] = true;
-        emit TeamRegistered(team);
+        teamName[team] = name;
+        emit TeamRegistered(team, name);
     }
 
     function setMinBond(uint256 newMinBond) external onlyPanel {
@@ -144,7 +148,7 @@ contract TeamBond is ITeamBond, ReentrancyGuard {
         maxPriceAge = newMaxPriceAge;
     }
 
-    function applyFine(address team, uint256 eurAmount)
+    function applyFine(address team, uint256 eurAmount, bytes32 decision)
         external
         nonReentrant
         onlyPanel
@@ -159,7 +163,7 @@ contract TeamBond is ITeamBond, ReentrancyGuard {
 
         _bond[weekendId][team] -= fromBond;
         debtOf[team] += newDebt;
-        emit FineApplied(weekendId, team, eurAmount, fineWei, fromBond, newDebt);
+        emit FineApplied(weekendId, team, eurAmount, fineWei, fromBond, newDebt, decision);
 
         if (fromBond > 0) _send(panel, fromBond);
     }
